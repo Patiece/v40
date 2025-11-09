@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blog Cá Nhân</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes slide-in {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .animate-slide-in {
+            animation: slide-in 0.3s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="module">
+        import React, { useState, useMemo } from 'https://esm.sh/react@18.2.0';
+        import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client';
+        import { Search, Plus, Edit2, Trash2, X, BookOpen, Calendar, Tag, Image, Video, FileText, Menu, Filter, Settings, Send, Share2, Check, AlertCircle, Facebook, Twitter, LinkIcon } from 'https://esm.sh/lucide-react@0.263.1';
+
+        const PersonalBlog = () => {
+            const [posts, setPosts] = useState([
+                {
+                    id: 1,
+                    title: 'Khởi đầu hành trình viết blog',
+                    content: 'Chào mừng bạn đến với blog cá nhân của tôi! Đây là nơi tôi chia sẻ những suy nghĩ, kiến thức và trải nghiệm của mình về cuộc sống, công nghệ và nhiều chủ đề thú vị khác.',
+                    category: 'Cá nhân',
+                    date: '2024-11-09',
+                    author: 'Admin',
+                    type: 'article',
+                    media: null
+                }
+            ]);
+
+            const [searchTerm, setSearchTerm] = useState('');
+            const [selectedCategory, setSelectedCategory] = useState('Tất cả');
+            const [selectedType, setSelectedType] = useState('all');
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [isFilterOpen, setIsFilterOpen] = useState(false);
+            const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+            const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+            const [selectedPost, setSelectedPost] = useState(null);
+            const [editingPost, setEditingPost] = useState(null);
+            const [notification, setNotification] = useState(null);
+
+            const [formData, setFormData] = useState({
+                title: '',
+                content: '',
+                category: '',
+                author: 'Admin',
+                type: 'article',
+                media: null
+            });
+
+            const [apiSettings, setApiSettings] = useState({
+                telegram: { 
+                    enabled: false, 
+                    botToken: '', 
+                    chatId: '', 
+                    syncEnabled: false
+                },
+                webhook: { enabled: false, url: '' }
+            });
+
+            const categories = ['Tất cả', ...new Set(posts.map(p => p.category))];
+
+            const showNotification = (message, type = 'success') => {
+                setNotification({ message, type });
+                setTimeout(() => setNotification(null), 3000);
+            };
+
+            const filteredPosts = useMemo(() => {
+                return posts.filter(post => {
+                    const matchesSearch = post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        post.content.toLowerCase().includes(searchTerm.toLowerCase());
+                    const matchesCategory = selectedCategory === 'Tất cả' || post.category === selectedCategory;
+                    const matchesType = selectedType === 'all' || post.type === selectedType;
+                    return matchesSearch && matchesCategory && matchesType;
+                });
+            }, [posts, searchTerm, selectedCategory, selectedType]);
+
+            const handleMediaUpload = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const mediaType = file.type.startsWith('image/') ? 'image' : 'video';
+                        setFormData({
+                            ...formData,
+                            type: mediaType === 'image' ? 'photo' : 'video',
+                            media: {
+                                url: event.target.result,
+                                type: mediaType,
+                                name: file.name
+                            }
+                        });
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const handleSubmit = () => {
+                if (!formData.title || !formData.category) {
+                    showNotification('Vui lòng điền đầy đủ thông tin!', 'error');
+                    return;
+                }
+
+                let updatedPost;
+                if (editingPost) {
+                    updatedPost = { ...formData, id: editingPost.id, date: editingPost.date };
+                    setPosts(posts.map(p => p.id === editingPost.id ? updatedPost : p));
+                } else {
+                    updatedPost = {
+                        ...formData,
+                        id: Date.now(),
+                        date: new Date().toISOString().split('T')[0]
+                    };
+                    setPosts([updatedPost, ...posts]);
+                }
+
+                showNotification('Bài viết đã được lưu!');
+                resetForm();
+            };
+
+            const handleEdit = (post) => {
+                setEditingPost(post);
+                setFormData({
+                    title: post.title,
+                    content: post.content,
+                    category: post.category,
+                    author: post.author,
+                    type: post.type,
+                    media: post.media
+                });
+                setIsModalOpen(true);
+            };
+
+            const handleDelete = (id) => {
+                if (window.confirm('Bạn có chắc muốn xóa bài viết này?')) {
+                    setPosts(posts.filter(p => p.id !== id));
+                    showNotification('Đã xóa bài viết!');
+                }
+            };
+
+            const handleShare = (post) => {
+                setSelectedPost(post);
+                setIsShareModalOpen(true);
+            };
+
+            const shareToSocial = (platform) => {
+                const url = encodeURIComponent(window.location.href);
+                const text = encodeURIComponent(selectedPost.title);
+
+                const urls = {
+                    facebook: \`https://www.facebook.com/sharer/sharer.php?u=\${url}\`,
+                    twitter: \`https://twitter.com/intent/tweet?text=\${text}&url=\${url}\`,
+                    telegram: \`https://t.me/share/url?url=\${url}&text=\${text}\`,
+                    whatsapp: \`https://wa.me/?text=\${text}%20\${url}\`
+                };
+
+                if (urls[platform]) {
+                    window.open(urls[platform], '_blank', 'width=600,height=400');
+                    showNotification(\`Đang chia sẻ lên \${platform}!\`);
+                }
+            };
+
+            const copyLink = () => {
+                navigator.clipboard.writeText(window.location.href);
+                showNotification('Đã copy link!');
+            };
+
+            const resetForm = () => {
+                setFormData({ title: '', content: '', category: '', author: 'Admin', type: 'article', media: null });
+                setEditingPost(null);
+                setIsModalOpen(false);
+            };
+
+            return React.createElement('div', { className: 'min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 pb-20' },
+                notification && React.createElement('div', {
+                    className: \`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-slide-in \${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white\`
+                },
+                    notification.type === 'success' ? React.createElement(Check, { className: 'w-5 h-5' }) : React.createElement(AlertCircle, { className: 'w-5 h-5' }),
+                    React.createElement('span', { className: 'text-sm font-medium' }, notification.message)
+                ),
+
+                React.createElement('header', { className: 'bg-white shadow-md sticky top-0 z-40' },
+                    React.createElement('div', { className: 'max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-4' },
+                        React.createElement('div', { className: 'flex items-center justify-between' },
+                            React.createElement('div', { className: 'flex items-center gap-2' },
+                                React.createElement(BookOpen, { className: 'w-6 h-6 sm:w-8 sm:h-8 text-blue-600' }),
+                                React.createElement('h1', { className: 'text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent' }, 'Blog Cá Nhân')
+                            ),
+                            React.createElement('div', { className: 'flex items-center gap-2' },
+                                React.createElement('button', {
+                                    onClick: () => setIsSettingsOpen(true),
+                                    className: 'p-2 hover:bg-gray-100 rounded-lg transition-all',
+                                    title: 'Cài đặt'
+                                }, React.createElement(Settings, { className: 'w-5 h-5 text-gray-600' })),
+                                React.createElement('button', {
+                                    onClick: () => setIsModalOpen(true),
+                                    className: 'flex items-center gap-1 sm:gap-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-lg hover:shadow-lg transition-all duration-300 active:scale-95 text-sm sm:text-base'
+                                },
+                                    React.createElement(Plus, { className: 'w-4 h-4 sm:w-5 sm:h-5' }),
+                                    React.createElement('span', { className: 'hidden sm:inline' }, 'Tạo nội dung'),
+                                    React.createElement('span', { className: 'sm:hidden' }, 'Tạo')
+                                )
+                            )
+                        )
+                    )
+                ),
+
+                React.createElement('div', { className: 'max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6' },
+                    React.createElement('div', { className: 'bg-white rounded-xl shadow-md p-3 sm:p-6 mb-4 sm:mb-6' },
+                        React.createElement('div', { className: 'flex flex-col gap-3' },
+                            React.createElement('div', { className: 'relative' },
+                                React.createElement(Search, { className: 'absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5' }),
+                                React.createElement('input', {
+                                    type: 'text',
+                                    placeholder: 'Tìm kiếm...',
+                                    value: searchTerm,
+                                    onChange: (e) => setSearchTerm(e.target.value),
+                                    className: 'w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm sm:text-base'
+                                })
+                            ),
+                            React.createElement('div', { className: 'flex flex-wrap gap-2' },
+                                categories.map(cat =>
+                                    React.createElement('button', {
+                                        key: cat,
+                                        onClick: () => setSelectedCategory(cat),
+                                        className: \`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-all duration-300 text-xs sm:text-sm \${selectedCategory === cat ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 active:bg-gray-300'}\`
+                                    }, cat)
+                                )
+                            )
+                        )
+                    ),
+
+                    React.createElement('div', { className: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6' },
+                        filteredPosts.map(post =>
+                            React.createElement('div', {
+                                key: post.id,
+                                className: 'bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden active:scale-[0.98]'
+                            },
+                                React.createElement('div', { className: 'bg-gradient-to-r from-blue-500 to-purple-500 h-1.5 sm:h-2' }),
+                                post.media && React.createElement('div', { className: 'relative h-40 sm:h-48 bg-gray-100 overflow-hidden' },
+                                    post.media.type === 'image' ?
+                                        React.createElement('img', { src: post.media.url, alt: post.title, className: 'w-full h-full object-cover' }) :
+                                        React.createElement('video', { src: post.media.url, className: 'w-full h-full object-cover', controls: true, playsInline: true })
+                                ),
+                                React.createElement('div', { className: 'p-4 sm:p-6' },
+                                    React.createElement('div', { className: 'flex items-center gap-2 mb-2 sm:mb-3' },
+                                        React.createElement(Tag, { className: 'w-3 h-3 sm:w-4 sm:h-4 text-purple-600' }),
+                                        React.createElement('span', { className: 'text-xs sm:text-sm font-medium text-purple-600' }, post.category)
+                                    ),
+                                    React.createElement('h3', { className: 'text-base sm:text-xl font-bold text-gray-800 mb-2 sm:mb-3 line-clamp-2' }, post.title),
+                                    post.content && React.createElement('p', { className: 'text-sm sm:text-base text-gray-600 mb-3 sm:mb-4 line-clamp-2 sm:line-clamp-3' }, post.content),
+                                    React.createElement('div', { className: 'flex items-center justify-between pt-3 sm:pt-4 border-t border-gray-100' },
+                                        React.createElement('div', { className: 'flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500' },
+                                            React.createElement(Calendar, { className: 'w-3.5 h-3.5 sm:w-4 sm:h-4' }),
+                                            React.createElement('span', null, post.date)
+                                        ),
+                                        React.createElement('div', { className: 'flex gap-1' },
+                                            React.createElement('button', {
+                                                onClick: () => handleShare(post),
+                                                className: 'p-1.5 sm:p-2 text-green-600 hover:bg-green-50 rounded-lg transition-all'
+                                            }, React.createElement(Share2, { className: 'w-3.5 h-3.5 sm:w-4 sm:h-4' })),
+                                            React.createElement('button', {
+                                                onClick: () => handleEdit(post),
+                                                className: 'p-1.5 sm:p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all'
+                                            }, React.createElement(Edit2, { className: 'w-3.5 h-3.5 sm:w-4 sm:h-4' })),
+                                            React.createElement('button', {
+                                                onClick: () => handleDelete(post.id),
+                                                className: 'p-1.5 sm:p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all'
+                                            }, React.createElement(Trash2, { className: 'w-3.5 h-3.5 sm:w-4 sm:h-4' }))
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    ),
+
+                    filteredPosts.length === 0 && React.createElement('div', { className: 'text-center py-12 sm:py-16' },
+                        React.createElement(BookOpen, { className: 'w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-3 sm:mb-4' }),
+                        React.createElement('p', { className: 'text-gray-500 text-base sm:text-lg' }, 'Không tìm thấy nội dung nào')
+                    )
+                )
+            );
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(
+            React.createElement(React.StrictMode, null,
+                React.createElement(PersonalBlog)
+            )
+        );
+    </script>
+</body>
+</html>
